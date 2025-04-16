@@ -10,7 +10,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
-builder.WebHost.UseUrls("http://*:8080", "http://*:5000");
+// builder.WebHost.UseUrls("http://*:8080", "http://*:5000");
 
 
 // Add the connection string from appsettings.json
@@ -35,13 +35,39 @@ builder.Services.AddCors((options) =>
     });
 
 var Configuration = builder.Configuration;
+// Console.WriteLine($"Database={Environment.GetEnvironmentVariable("PG_DATABASE")};Username={Environment.GetEnvironmentVariable("PG_USERNAME")};Password={Environment.GetEnvironmentVariable("PG_PASSWORD")}");
+// builder.Services.AddDbContext<AppDbContext>(options =>
+//     options.UseNpgsql(
+//         $"Host=db;Port=5432;Database={Environment.GetEnvironmentVariable("PG_DATABASE")};Username={Environment.GetEnvironmentVariable("PG_USERNAME")};Password={Environment.GetEnvironmentVariable("PG_PASSWORD")}"
+//     ));
 builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseNpgsql(Configuration.GetConnectionString("DefaultConnection")));
-
+    options.UseNpgsql(
+        $"Host=db;Port=5432;Database=db;Username=admin;Password=admin"
+    ));
 
 var app = builder.Build();
-
+Thread.Sleep(10000); // Wait for 10 seconds to ensure the database is ready
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate(); // This applies the migration at startup
+}
+app.UseRouting();
 app.MapControllers();
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("DevCors");
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+else
+{
+    app.UseCors("ProdCors");
+    app.UseHttpsRedirection();
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.Run();
 
