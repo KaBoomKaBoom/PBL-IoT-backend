@@ -1,15 +1,17 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 [ApiController]
 [Route("[controller]")]
-public class UserController : ControllerBase
+public class AuthController : ControllerBase
 {
     private readonly AppDbContext _context;
-
-    public UserController(AppDbContext context)
+    private readonly JwtService _jwtService;
+    public AuthController(AppDbContext context, JwtService jwtService)
     {
         _context = context;
+        _jwtService = jwtService;
     }
 
     [HttpPost("register")]
@@ -46,11 +48,13 @@ public class UserController : ControllerBase
         {
             return Unauthorized("Invalid email or password.");
         }
+        var token = _jwtService.GenerateToken(user.Id, user.Email);
 
-        return Ok(new { Message = "Login successful." });
+        return Ok(new { Token = token });
     }
 
     [HttpGet("getAll")]
+    [Authorize]
     public async Task<IActionResult> GetAllUsers()
     {
         var users = await _context.Users.ToListAsync();
