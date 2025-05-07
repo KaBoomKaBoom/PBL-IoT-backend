@@ -128,7 +128,7 @@ using (var scope = app.Services.CreateScope())
         // Optional: Wait a few seconds if DB might not be ready (e.g., Docker Compose race condition)
         var logger = services.GetRequiredService<ILogger<Program>>();
         logger.LogInformation("Waiting for DB to be ready...");
-        Thread.Sleep(5000);
+        Thread.Sleep(30000);
 
         logger.LogInformation("Applying EF Core migrations...");
         context.Database.Migrate();

@@ -8,6 +8,7 @@ public class HomeController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly JwtService _jwtService;
+
     public HomeController(AppDbContext context, JwtService jwtService)
     {
         _context = context;
@@ -17,13 +18,21 @@ public class HomeController : ControllerBase
     [HttpGet("{userId}")]
     public async Task<IActionResult> GetAppPlants([FromRoute] int userId)
     {
-        if (userId <= 0 || _context.Users.FirstOrDefaultAsync(u => u.Id == userId) == null)
+        if (userId <= 0)
         {
             return BadRequest("Invalid user ID.");
         }
 
-        var plants = await _context.Plants.Where(p => p.UserId == userId).ToListAsync();
-        
+        var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
+        if (!userExists)
+        {
+            return BadRequest("Invalid user ID.");
+        }
+
+        var plants = await _context.Plants
+            .Where(p => p.UserId == userId)
+            .ToListAsync();
+
         if (plants == null || !plants.Any())
         {
             return NotFound("No plants found for the user.");
@@ -35,14 +44,14 @@ public class HomeController : ControllerBase
     [HttpGet("getPlant/{plantId}")]
     public async Task<IActionResult> GetPlant([FromRoute] int plantId)
     {
-        if (plantId <= 0 ||  _context.Plants.FirstOrDefaultAsync(p => p.Id == plantId) == null)
-        
+        if (plantId <= 0)
         {
             return BadRequest("Invalid plant ID.");
         }
 
-        var plant = await _context.Plants.FirstOrDefaultAsync(p => p.Id == plantId);
-        
+        var plant = await _context.Plants
+            .FirstOrDefaultAsync(p => p.Id == plantId);
+
         if (plant == null)
         {
             return NotFound("Plant not found.");
@@ -54,13 +63,19 @@ public class HomeController : ControllerBase
     [HttpGet("getPlant/report/{specificSensor}/{period}")]
     public async Task<IActionResult> GetPlantReport([FromRoute] int specificSensor, [FromRoute] int period)
     {
-        if (specificSensor <= 0 || _context.Sensors.FirstOrDefaultAsync(s => s.Id == specificSensor) == null)
+        if (specificSensor <= 0)
+        {
+            return BadRequest("Invalid sensor ID.");
+        }
+
+        var sensorExists = await _context.Sensors.AnyAsync(s => s.Id == specificSensor);
+        if (!sensorExists)
         {
             return BadRequest("Invalid sensor ID.");
         }
 
         var sensorReadings = await _context.SensorReadings
-            .Where(sr => sr.SensorId == specificSensor && sr.Timestamp >= DateTime.UtcNow.AddDays(- period))
+            .Where(sr => sr.SensorId == specificSensor && sr.Timestamp >= DateTime.UtcNow.AddDays(-period))
             .ToListAsync();
 
         if (sensorReadings == null || !sensorReadings.Any())
@@ -85,12 +100,13 @@ public class HomeController : ControllerBase
             var readings = await _context.SensorReadings
                 .Where(sr => sr.SensorId == sensorId && sr.Timestamp >= DateTime.UtcNow.AddDays(-sensorsForReportDTO.Days))
                 .ToListAsync();
-            
+
             if (readings != null && readings.Any())
             {
                 sensorReadings.AddRange(readings);
             }
         }
+
         if (sensorReadings == null || !sensorReadings.Any())
         {
             return NotFound("No sensor readings found for the specified plant and sensors.");
@@ -98,5 +114,4 @@ public class HomeController : ControllerBase
 
         return Ok(sensorReadings);
     }
-
 }

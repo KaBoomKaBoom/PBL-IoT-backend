@@ -54,7 +54,6 @@ public class AuthController : ControllerBase
     }
 
     [HttpGet("getAll")]
-    [Authorize]
     public async Task<IActionResult> GetAllUsers()
     {
         var users = await _context.Users.ToListAsync();
