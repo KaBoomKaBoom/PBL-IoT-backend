@@ -11,6 +11,18 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<User>()
             .ToTable("Users", "PBL_IOT")
             .HasKey(u => u.Id);
+
+        modelBuilder.Entity<SensorType>()
+            .ToTable("SensorTypes", "PBL_IOT")
+            .HasKey(st => st.Id);
+
+        modelBuilder.Entity<Sensor>()
+            .ToTable("Sensors", "PBL_IOT")
+            .HasKey(s => s.Id);
+        
+        modelBuilder.Entity<SensorReading>()
+            .ToTable("SensorReadings", "PBL_IOT")
+            .HasKey(sr => sr.Id);
     }
 
 }
