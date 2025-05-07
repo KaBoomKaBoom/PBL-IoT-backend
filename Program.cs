@@ -118,14 +118,28 @@ builder.Services.AddScoped<JwtService>(); // your own JwtService if you have one
 
 var app = builder.Build();
 
-//!!!!!!!!After the migration, you can comment this out or remove it. It is only for the first time to create the database and tables.!!!!!!!!
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>();
 
-// Thread.Sleep(10000); // Wait for 10 seconds to ensure the database is ready
-// using (var scope = app.Services.CreateScope())
-// {
-//     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-//     db.Database.Migrate(); // This applies the migration at startup
-// }
+        // Optional: Wait a few seconds if DB might not be ready (e.g., Docker Compose race condition)
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("Waiting for DB to be ready...");
+        Thread.Sleep(5000);
+
+        logger.LogInformation("Applying EF Core migrations...");
+        context.Database.Migrate();
+        logger.LogInformation("Migrations applied successfully.");
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while applying the database migrations.");
+    }
+}
 
 app.UseRouting();
 // Configure the HTTP request pipeline.

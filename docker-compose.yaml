@@ -11,20 +11,20 @@ services:
     depends_on:
       - db
     environment:
-      POSTGRES_USER: ${PG_USERNAME}
-      POSTGRES_PASSWORD: ${PG_PASSWORD}
-      POSTGRES_DB: ${PG_DATABASE}
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: db
 
   db:
     image: postgres
     restart: always
     container_name: postgres_db
     environment:
-      POSTGRES_USER: ${PG_USERNAME}
-      POSTGRES_PASSWORD: ${PG_PASSWORD}
-      POSTGRES_DB: ${PG_DATABASE}
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: db
     volumes:
-      - ./data:/var/lib/postgresql/data
+      - ./data1:/var/lib/postgresql/data
     ports:
       - 5432:5432
  
