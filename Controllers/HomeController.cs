@@ -41,6 +41,32 @@ public class HomeController : ControllerBase
         return Ok(plants);
     }
 
+    [HttpGet("{userId}/getPlants")]
+    public async Task<IActionResult> GetPlants([FromRoute] int userId)
+    {
+        if (userId <= 0)
+        {
+            return BadRequest("Invalid user ID.");
+        }
+
+        var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
+        if (!userExists)
+        {
+            return BadRequest("Invalid user ID.");
+        }
+
+        var plants = await _context.Plants
+            .Where(p => p.UserId == userId)
+            .ToListAsync();
+
+        if (plants == null || !plants.Any())
+        {
+            return NotFound("No plants found for the user.");
+        }
+
+        return Ok(plants);
+    }
+
     [HttpGet("getPlant/{plantId}")]
     public async Task<IActionResult> GetPlant([FromRoute] int plantId)
     {
@@ -56,8 +82,28 @@ public class HomeController : ControllerBase
         {
             return NotFound("Plant not found.");
         }
+        var plantToReturn = new PlantDTO
+        {
+            Id = plant.Id,
+            Name = plant.Name,
+            Description = plant.Description,
+            UserId = plant.UserId,
+            SensorIds = plant.SensorIds
+        };
 
-        return Ok(plant);
+        foreach (var sensorId in plant.SensorIds)
+        {
+            var lastSensorReading = await _context.SensorReadings
+                .Where(sr => sr.SensorId == sensorId)
+                .OrderByDescending(sr => sr.Timestamp)
+                .FirstOrDefaultAsync();
+            if (lastSensorReading != null)
+            {
+                plantToReturn.LastSensorReadings.Add(lastSensorReading);
+            }
+        }
+
+        return Ok(plantToReturn);
     }
 
     [HttpGet("getPlant/report/{specificSensor}/{period}")]

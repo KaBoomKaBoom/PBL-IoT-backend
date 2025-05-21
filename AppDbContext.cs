@@ -8,7 +8,7 @@ public class AppDbContext : DbContext
     public DbSet<Sensor> Sensors { get; set; }
     public DbSet<SensorReading> SensorReadings { get; set; }
     public DbSet<Plant> Plants { get; set; }
-    
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("PBL_IOT");
@@ -24,14 +24,18 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Sensor>()
             .ToTable("Sensors", "PBL_IOT")
             .HasKey(s => s.Id);
-        
+
         modelBuilder.Entity<SensorReading>()
             .ToTable("SensorReadings", "PBL_IOT")
-            .HasKey(sr => sr.Id);    
+            .HasKey(sr => sr.Id);
 
         modelBuilder.Entity<Plant>()
             .ToTable("Plants", "PBL_IOT")
             .HasKey(p => p.Id);
+        // Ensure DateTime is handled as UTC for PostgreSQL
+        modelBuilder.Entity<SensorReading>()
+            .Property(sr => sr.Timestamp)
+            .HasColumnType("timestamp with time zone");
     }
 
 }

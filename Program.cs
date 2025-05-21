@@ -46,7 +46,10 @@ var Configuration = builder.Configuration;
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
         $"Host=db;Port=5432;Database=db;Username=admin;Password=admin"
-    ));
+    ).EnableSensitiveDataLogging()
+        .EnableDetailedErrors()
+        .LogTo(Console.WriteLine, LogLevel.Information)
+    );
 
 // Read JWT values directly
 var jwtConfig = builder.Configuration.GetSection("JwtSettings");
@@ -61,7 +64,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    
+
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = false,
@@ -80,7 +83,7 @@ builder.Services.AddAuthentication(options =>
     //     {
     //         var authHeader = context.Request.Headers["Authorization"].ToString();
     //         Console.WriteLine($"Raw Authorization header: '{authHeader}'");
-            
+
     //         if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
     //         {
     //             var token = authHeader.Substring("Bearer ".Length).Trim();
@@ -91,7 +94,7 @@ builder.Services.AddAuthentication(options =>
     //         {
     //             Console.WriteLine("No valid Bearer token found in Authorization header");
     //         }
-            
+
     //         return Task.CompletedTask;
     //     },
     //     OnAuthenticationFailed = context =>
@@ -121,23 +124,36 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    try
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var context = services.GetRequiredService<AppDbContext>();
+    const int maxRetries = 5;
+    const int delaySeconds = 5;
+    
+    for (int attempt = 1; attempt <= maxRetries; attempt++)
     {
-        var context = services.GetRequiredService<AppDbContext>();
+        try
+        {
+            logger.LogInformation($"Attempt {attempt} of {maxRetries}: Applying EF Core migrations...");
+            await context.Database.MigrateAsync();
+            logger.LogInformation("Migrations applied successfully.");
 
-        // Optional: Wait a few seconds if DB might not be ready (e.g., Docker Compose race condition)
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Waiting for DB to be ready...");
-        Thread.Sleep(30000);
-
-        logger.LogInformation("Applying EF Core migrations...");
-        context.Database.Migrate();
-        logger.LogInformation("Migrations applied successfully.");
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while applying the database migrations.");
+            // Seed data after successful migration
+            logger.LogInformation("Seeding database with mock data...");
+            await MockData.SeedData(context);
+            logger.LogInformation("Database seeding completed successfully.");
+            break; // Exit loop on success
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, $"Attempt {attempt} of {maxRetries}: Failed to apply database migrations.");
+            if (attempt == maxRetries)
+            {
+                logger.LogError("All retry attempts failed. Aborting migration and seeding.");
+                throw; // Rethrow the last exception after max retries
+            }
+            logger.LogInformation($"Waiting {delaySeconds} seconds before retrying...");
+            await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+        }
     }
 }
 
