@@ -90,7 +90,7 @@ public class HomeController : ControllerBase
             UserId = plant.UserId,
             SensorIds = plant.SensorIds
         };
-
+        var lastSensorReadings = new List<SensorReadingDTO>();
         foreach (var sensorId in plant.SensorIds)
         {
             var lastSensorReading = await _context.SensorReadings
@@ -99,8 +99,24 @@ public class HomeController : ControllerBase
                 .FirstOrDefaultAsync();
             if (lastSensorReading != null)
             {
-                plantToReturn.LastSensorReadings.Add(lastSensorReading);
+                var sensorType = await _context.SensorTypes
+                    .Where(st => st.Id == _context.Sensors.Where(s => s.Id == sensorId).Select(s => s.SensorTypeId).FirstOrDefault())
+                    .FirstOrDefaultAsync();
+
+                if (sensorType != null)
+                {
+                    lastSensorReadings.Add(new SensorReadingDTO
+                    {
+                        SensorReading = lastSensorReading,
+                        SensorType = sensorType
+                    });
+                }
             }
+        }
+        plantToReturn.LastSensorReadings = lastSensorReadings;
+        if (lastSensorReadings == null || !lastSensorReadings.Any())
+        {
+            return NotFound("No sensor readings found for the specified plant.");
         }
 
         return Ok(plantToReturn);
@@ -120,9 +136,33 @@ public class HomeController : ControllerBase
             return BadRequest("Invalid sensor ID.");
         }
 
-        var sensorReadings = await _context.SensorReadings
+        var sensorReadings = new List<SensorReadingDTO>();
+
+        var sensorReading = new SensorReadingDTO();
+        Console.WriteLine("Processing sensor ID: " + specificSensor);
+        var readings = await _context.SensorReadings
             .Where(sr => sr.SensorId == specificSensor && sr.Timestamp >= DateTime.UtcNow.AddDays(-period))
             .ToListAsync();
+
+        if (readings != null && readings.Any())
+        {
+            Console.WriteLine("Found " + readings.Count + " readings for sensor ID: " + specificSensor);
+            foreach (var reading in readings)
+            {
+                Console.WriteLine("Processing reading with ID: " + reading.Id);
+                var sensorType = await _context.SensorTypes
+                .Where(st => st.Id == _context.Sensors.Where(s => s.Id == specificSensor).Select(s => s.SensorTypeId).FirstOrDefault())
+                .FirstOrDefaultAsync();
+
+                Console.WriteLine("Sensor type found: " + (sensorType != null ? sensorType.Name : "null"));
+                if (sensorType != null)
+                {
+                    sensorReading.SensorReading = reading;
+                    sensorReading.SensorType = sensorType;
+                    sensorReadings.Add(sensorReading);
+                }
+            }
+        }
 
         if (sensorReadings == null || !sensorReadings.Any())
         {
@@ -140,19 +180,45 @@ public class HomeController : ControllerBase
             return BadRequest("Invalid report data.");
         }
 
-        var sensorReadings = new List<SensorReading>();
+        var sensorReadings = new List<SensorReadingDTO>();
+        if (sensorsForReportDTO.SensorIds == null || !sensorsForReportDTO.SensorIds.Any())
+        {
+            return BadRequest("No sensor IDs provided.");
+        }
+        if (sensorsForReportDTO.Days <= 0)
+        {
+            return BadRequest("Invalid number of days.");
+        }
+        Console.WriteLine(sensorsForReportDTO.SensorIds.Count + " sensor IDs provided.");
         foreach (var sensorId in sensorsForReportDTO.SensorIds)
         {
+            var sensorReading = new SensorReadingDTO();
+            Console.WriteLine("Processing sensor ID: " + sensorId);
             var readings = await _context.SensorReadings
                 .Where(sr => sr.SensorId == sensorId && sr.Timestamp >= DateTime.UtcNow.AddDays(-sensorsForReportDTO.Days))
                 .ToListAsync();
 
             if (readings != null && readings.Any())
             {
-                sensorReadings.AddRange(readings);
+                Console.WriteLine("Found " + readings.Count + " readings for sensor ID: " + sensorId);
+                foreach (var reading in readings)
+                {
+                    Console.WriteLine("Processing reading with ID: " + reading.Id);
+                    var sensorType = await _context.SensorTypes
+                    .Where(st => st.Id == _context.Sensors.Where(s => s.Id == sensorId).Select(s => s.SensorTypeId).FirstOrDefault())
+                    .FirstOrDefaultAsync();
+
+                    Console.WriteLine("Sensor type found: " + (sensorType != null ? sensorType.Name : "null"));
+                    if (sensorType != null)
+                    {
+                        sensorReading.SensorReading = reading;
+                        sensorReading.SensorType = sensorType;
+                        sensorReadings.Add(sensorReading);
+                    }
+                }
             }
         }
-
+        Console.WriteLine("Found " + sensorReadings.Count + " readings for the specified sensors.");
         if (sensorReadings == null || !sensorReadings.Any())
         {
             return NotFound("No sensor readings found for the specified plant and sensors.");
