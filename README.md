@@ -15,6 +15,10 @@ This document provides an overview of the models and controllers for the Plant M
 2. [Controllers](#controllers)
    - [AuthController](#authcontroller)
    - [HomeController](#homecontroller)
+3. [Background Services](#background-services)
+   - [MqttSensorService](#mqttsensorservice)
+4. [Application Services](#application-services)
+   - [AlertService](#alertservice) 
 
 ## Models
 
@@ -254,3 +258,131 @@ Manages plant and sensor data retrieval.
        ```
      - `400 BadRequest`: If input data is invalid.
      - `404 NotFound`: If no readings are found.
+
+5. **PUT /Home/updatePlant**
+   - **Description**: Updates a plant's name, description, associated sensors, and user.
+   - **Input**: `PlantDTO` in JSON format.
+   - **Validation**:
+     - Checks if the plant exists.
+     - Validates that the user exists.
+   - **Response**:
+     - `200 OK`: Plant updated successfully.
+     - `400 BadRequest`: If the input is invalid.
+     - `404 NotFound`: If the plant is not found.
+
+6. **POST /Home/addSensor**
+   - **Description**: Adds a new sensor to the system.
+   - **Input**: `Sensor` object in JSON format.
+   - **Validation**:
+     - Ensures the `UserId` and `SensorTypeId` are valid and exist.
+   - **Response**:
+     - `200 OK`: Sensor added successfully.
+     - `400 BadRequest`: If the input data is invalid.
+
+7. **GET /Home/{userId}/getPlants**
+   - **Description**: Retrieves all plants for a specific user (duplicate of `/Home/{userId}` for flexible routing).
+   - **Parameters**: `userId` (int): ID of the user.
+   - **Response**:
+     - Same as `/Home/{userId}`.
+
+8. **GET /Home/getAlerts/{userId}**
+   - **Description**: Retrieves all alerts associated with a specific user.
+   - **Parameters**: `userId` (int): ID of the user.
+   - **Validation**:
+     - Validates that the user exists.
+   - **Response**:
+     - `200 OK`: Returns a list of alerts.
+     - `400 BadRequest`: If user ID is invalid.
+     - `404 NotFound`: If no alerts are found.
+
+9. **POST /Home/addAlert**
+   - **Description**: Creates a new alert associated with a sensor.
+   - **Input**: `Alert` object in JSON format.
+   - **Validation**:
+     - Validates presence of required fields (`SensorId`, `Message`, `UserId`).
+     - Checks if the sensor and user exist.
+   - **Response**:
+     - `200 OK`: Alert added successfully.
+     - `400 BadRequest`: If the data is invalid.
+
+## Background Services
+
+### MqttSensorService
+
+**Description**:  
+The `MqttSensorService` is a background worker that connects to a HiveMQ broker and listens to MQTT messages published by environmental sensors (e.g., temperature, humidity, luminosity). When a message is received, it processes and stores sensor readings into the database and optionally triggers alerts.
+
+**Responsibilities**:
+- Establish and maintain a secure MQTT connection using TLS.
+- Subscribe to predefined topics such as:
+  - `sensorData/dht22/temperature`
+  - `sensorData/dht22/humidity`
+  - `sensorData/ldr`
+- Parse incoming MQTT messages, validate payloads, and map them to appropriate sensors.
+- Use dependency-injected `AppDbContext` to store sensor readings.
+- Automatically create alerts using the `AlertService` if thresholds or anomalies are detected.
+- Implement reconnection logic to handle network or broker failures robustly.
+
+**Key Features**:
+- **Resilience**: Reconnects automatically on connection loss.
+- **Validation**: Ensures sensor readings are within valid ranges before saving.
+- **Scope-Aware**: Resolves `DbContext` per message using a DI scope.
+- **Performance**: Asynchronous and non-blocking implementation.
+- **Monitoring**: Includes detailed logging for broker communication, message processing, and exception handling.
+
+**Configuration**:
+- Broker: HiveMQ Cloud
+- Port: 8883 (secure MQTT)
+- Credentials and client ID configured via `HiveMQClientOptions`
+
+**Logging Examples**:
+- Successful connection and subscription
+- Payload parsing and data processing
+- Alerts creation outcomes
+- Error handling on unexpected payloads or broker issues
+
+**Use Case**:  
+Allows the system to autonomously receive real-time environmental data from physical IoT sensors and transform it into actionable insights for plant monitoring and alerting.
+
+## Application Services
+
+### AlertService
+
+**Description**:  
+The `AlertService` is responsible for generating context-aware alerts based on incoming sensor readings. It encapsulates business logic that determines when an alert condition is met and saves the alert to the database.
+
+**Responsibilities**:
+- Analyze sensor readings and determine if values are outside safe thresholds.
+- Generate appropriate alert messages specific to sensor type and reading.
+- Persist alerts in the `Alerts` table with timestamps and descriptive messages.
+
+**Core Logic**:
+- For **Temperature sensors** (`sensorId == 10`):
+  - If value < 17°C → triggers "Temperature is too low".
+  - If value > 30°C → triggers "Temperature is too high".
+- For **Humidity sensors** (`sensorId == 11`):
+  - If value < 65% → triggers "Humidity is too low".
+  - If value > 85% → triggers "Humidity is too high".
+- The alert message is prefixed with the sensor type for clarity.
+
+**Method Summary**:
+
+#### `CreateAlertAsync(int sensorId, float value, string message)`
+- **Input**:  
+  - `sensorId`: ID of the sensor.
+  - `value`: The latest sensor reading.
+  - `message`: Initial or fallback message.
+- **Output**:  
+  - Returns an `Alert` object after saving it to the database.
+- **Exceptions**:
+  - Throws `ArgumentException` if `sensorId` is invalid.
+- **Behavior**:
+  - Evaluates thresholds and updates `message` accordingly.
+  - Adds the alert to the database and commits asynchronously.
+
+**Planned Features**:
+- (Commented) `GetAlertsByUserIdAsync`: Intended to retrieve all alerts by user ID, supporting future expansion of alert history and UI integration.
+
+**Use Case**:  
+This service is called directly by `MqttSensorService` whenever a new reading is received. It ensures the system can proactively notify users about abnormal conditions affecting their plants, helping maintain plant health through timely intervention.
+

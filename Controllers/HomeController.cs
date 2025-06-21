@@ -15,6 +15,93 @@ public class HomeController : ControllerBase
         _jwtService = jwtService;
     }
 
+    // [AllowAnonymous]
+    // [HttpPost("addPlant")]
+    // public async Task<IActionResult> AddPlant([FromBody] PlantDTO plantDTO)
+    // {
+    //     if (plantDTO == null || string.IsNullOrEmpty(plantDTO.Name) || plantDTO.UserId <= 0)
+    //     {
+    //         return BadRequest("Invalid plant data.");
+    //     }
+
+    //     var userExists = await _context.Users.AnyAsync(u => u.Id == plantDTO.UserId);
+    //     if (!userExists)
+    //     {
+    //         return BadRequest("Invalid user ID.");
+    //     }
+
+    //     var plant = new Plant
+    //     {
+    //         Name = plantDTO.Name,
+    //         Description = plantDTO.Description,
+    //         UserId = plantDTO.UserId,
+    //         SensorIds = plantDTO.SensorIds
+    //     };
+
+    //     _context.Plants.Add(plant);
+    //     await _context.SaveChangesAsync();
+
+    //     return Ok(new { Message = "Plant added successfully." });
+    // }
+    [AllowAnonymous]
+    [HttpPut("updatePlant")]
+    public async Task<IActionResult> UpdatePlant([FromBody] PlantDTO plantDTO)
+    {
+        if (plantDTO == null || plantDTO.Id <= 0 || string.IsNullOrEmpty(plantDTO.Name) || plantDTO.UserId <= 0)
+        {
+            return BadRequest("Invalid plant data.");
+        }
+
+        var plant = await _context.Plants.FindAsync(plantDTO.Id);
+        if (plant == null)
+        {
+            return NotFound("Plant not found.");
+        }
+
+        var userExists = await _context.Users.AnyAsync(u => u.Id == plantDTO.UserId);
+        if (!userExists)
+        {
+            return BadRequest("Invalid user ID.");
+        }
+
+        plant.Name = plantDTO.Name;
+        plant.Description = plantDTO.Description;
+        plant.UserId = plantDTO.UserId;
+        plant.SensorIds = plantDTO.SensorIds;
+
+        _context.Plants.Update(plant);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { Message = "Plant updated successfully." });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("addSensor")]
+    public async Task<IActionResult> AddSensor([FromBody] Sensor sensor)
+    {
+        if (sensor == null || sensor.UserId <= 0 || sensor.SensorTypeId <= 0)
+        {
+            return BadRequest("Invalid sensor data.");
+        }
+
+        var userExists = await _context.Users.AnyAsync(u => u.Id == sensor.UserId);
+        if (!userExists)
+        {
+            return BadRequest("Invalid user ID.");
+        }
+
+        var sensorTypeExists = await _context.SensorTypes.AnyAsync(st => st.Id == sensor.SensorTypeId);
+        if (!sensorTypeExists)
+        {
+            return BadRequest("Invalid sensor type ID.");
+        }
+
+        _context.Sensors.Add(sensor);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { Message = "Sensor added successfully." });
+    }
+
     [HttpGet("{userId}")]
     public async Task<IActionResult> GetAppPlants([FromRoute] int userId)
     {
@@ -225,5 +312,57 @@ public class HomeController : ControllerBase
         }
 
         return Ok(sensorReadings);
+    }
+
+    [HttpGet("getAlerts/{userId}")]
+    public async Task<IActionResult> GetAlerts([FromRoute] int userId)
+    {
+        if (userId <= 0)
+        {
+            return BadRequest("Invalid user ID.");
+        }
+
+        var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
+        if (!userExists)
+        {
+            return BadRequest("Invalid user ID.");
+        }
+
+        var alerts = await _context.Alerts
+            .Where(a => a.UserId == userId)
+            .ToListAsync();
+
+        if (alerts == null || !alerts.Any())
+        {
+            return NotFound("No alerts found for the user.");
+        }
+
+        return Ok(alerts);
+    }
+    [HttpPost("addAlert")]
+    public async Task<IActionResult> AddAlert([FromBody] Alert alert)
+    {
+        if (alert == null || alert.SensorId <= 0 || string.IsNullOrEmpty(alert.Message) || alert.UserId <= 0)
+        {
+            return BadRequest("Invalid alert data.");
+        }
+
+        var userExists = await _context.Users.AnyAsync(u => u.Id == alert.UserId);
+        if (!userExists)
+        {
+            return BadRequest("Invalid user ID.");
+        }
+
+        var sensorExists = await _context.Sensors.AnyAsync(s => s.Id == alert.SensorId);
+        if (!sensorExists)
+        {
+            return BadRequest("Invalid sensor ID.");
+        }
+
+        alert.CreatedAt = DateTime.UtcNow;
+        _context.Alerts.Add(alert);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { Message = "Alert added successfully." });
     }
 }

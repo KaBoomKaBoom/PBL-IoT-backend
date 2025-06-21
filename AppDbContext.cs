@@ -8,6 +8,7 @@ public class AppDbContext : DbContext
     public DbSet<Sensor> Sensors { get; set; }
     public DbSet<SensorReading> SensorReadings { get; set; }
     public DbSet<Plant> Plants { get; set; }
+    public DbSet<Alert> Alerts { get; set; } // Assuming you have an Alert model
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,6 +37,10 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<SensorReading>()
             .Property(sr => sr.Timestamp)
             .HasColumnType("timestamp with time zone");
+
+        modelBuilder.Entity<Alert>()
+            .ToTable("Alerts", "PBL_IOT")
+            .HasKey(a => a.Id);
     }
 
 }

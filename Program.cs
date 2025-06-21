@@ -19,23 +19,19 @@ builder.Services.AddControllers();
 // Add the connection string from appsettings.json
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-builder.Services.AddCors((options) =>
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendPolicy", policy =>
     {
-        options.AddPolicy("DevCors", (corsBuilder) =>
-            {
-                corsBuilder.WithOrigins("http://localhost:4200", "http://localhost:3000", "http://localhost:8000")
-                    .AllowAnyMethod()
-                    .AllowAnyHeader()
-                    .AllowCredentials();
-            });
-        options.AddPolicy("ProdCors", (corsBuilder) =>
-            {
-                corsBuilder.WithOrigins("https://myProductionSite.com")
-                    .AllowAnyMethod()
-                    .AllowAnyHeader()
-                    .AllowCredentials();
-            });
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials(); // Important for cookies or auth headers
     });
+});
+
+
 
 var Configuration = builder.Configuration;
 // Console.WriteLine($"Database={Environment.GetEnvironmentVariable("PG_DATABASE")};Username={Environment.GetEnvironmentVariable("PG_USERNAME")};Password={Environment.GetEnvironmentVariable("PG_PASSWORD")}");
@@ -50,6 +46,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         .EnableDetailedErrors()
         .LogTo(Console.WriteLine, LogLevel.Information)
     );
+
+// Add MQTT service
+builder.Services.AddHostedService<MqttSensorService>();
 
 // Read JWT values directly
 var jwtConfig = builder.Configuration.GetSection("JwtSettings");
@@ -128,7 +127,7 @@ using (var scope = app.Services.CreateScope())
     var context = services.GetRequiredService<AppDbContext>();
     const int maxRetries = 5;
     const int delaySeconds = 5;
-    
+
     for (int attempt = 1; attempt <= maxRetries; attempt++)
     {
         try
@@ -159,23 +158,15 @@ using (var scope = app.Services.CreateScope())
 
 app.UseRouting();
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.UseCors("FrontendPolicy");
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseCors("DevCors");
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "My API V1");
-        c.RoutePrefix = string.Empty; // Set Swagger UI at the app's root
-    });
-}
-else
-{
-    app.UseCors("ProdCors");
-    app.UseHttpsRedirection();
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "My API V1");
+    c.RoutePrefix = string.Empty; // Set Swagger UI at the app's root
+});
+
+
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -14,6 +14,7 @@ public class AuthController : ControllerBase
         _jwtService = jwtService;
     }
 
+    [AllowAnonymous]
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] UserRegisterDTO userRegisterDTO)
     {
@@ -35,6 +36,7 @@ public class AuthController : ControllerBase
         return Ok(new { Message = "User registered successfully." });
     }
 
+    [AllowAnonymous]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] UserLoginDTO userLoginDTO)
     {
@@ -50,9 +52,10 @@ public class AuthController : ControllerBase
         }
         var token = _jwtService.GenerateToken(user.Id, user.Email);
 
-        return Ok(new { Token = token });
+        return Ok(new { Token = token, UserId = user.Id});
     }
 
+    [AllowAnonymous]
     [HttpGet("getAll")]
     public async Task<IActionResult> GetAllUsers()
     {
